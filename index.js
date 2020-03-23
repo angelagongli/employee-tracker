@@ -160,25 +160,38 @@ function delDepartment() {
   query.select("department")
     .then(res => {
       let objectArr = JSON.parse(JSON.stringify(res));
-      let choicesArr = objectArr.map(element => element.name);
-      return choicesArr;
+      let departmentArr = objectArr.map(element => element.name);
+      let departmentIDArr = objectArr.map(element => element.id);
+      return {departmentArr, departmentIDArr};
     })
-    .then(choices => {
+    .then(arrays => {
       inquirer.prompt([
         {
           type: "list",
           name: "department",
           message: "Which department would you like to delete?",
-          choices: choices
+          choices: arrays.departmentArr
         }
       ]).then(answer => {
-        console.log("Deleting department...\n");
-        query.deleteWhere("department", {name: answer.department})
-        .then(res => {
-          console.log("Updated department list:\n");
-          viewAll("department");
-        });
-      })
+        let index = arrays.departmentArr.indexOf(answer.department);
+        let departmentID = arrays.departmentIDArr[index];
+        query.select("role")
+          .then(res => {
+            let objectArr = JSON.parse(JSON.stringify(res));
+            let roleDepartmentIDArr = objectArr.map(element => element.department_id);
+            if (roleDepartmentIDArr.indexOf(departmentID) !== -1) {
+              console.log("\nCannot delete department before deleting its associated roles!");
+              viewAll("role");
+            } else {        
+              console.log("Deleting department...\n");
+              query.deleteWhere("department", {name: answer.department})
+              .then(res => {
+                console.log("Updated department list:\n");
+                viewAll("department");
+              });
+            }
+          })
+        })
     }).catch(err => {
       if (err) {
         console.log(err);
@@ -190,24 +203,37 @@ function delRole() {
   query.select("role")
     .then(res => {
       let objectArr = JSON.parse(JSON.stringify(res));
-      let choicesArr = objectArr.map(element => element.title);
-      return choicesArr;
+      let roleArr = objectArr.map(element => element.title);
+      let roleIDArr = objectArr.map(element => element.id);
+      return {roleArr, roleIDArr};
     })
-    .then(choices => {
+    .then(arrays => {
       inquirer.prompt([
         {
           type: "list",
           name: "role",
           message: "Which role would you like to delete?",
-          choices: choices
+          choices: arrays.roleArr
         }
       ]).then(answer => {
-        console.log("Deleting role...\n");
-        query.deleteWhere("role", {title: answer.role})
-        .then(res => {
-          console.log("Updated role list:\n");
-          viewAll("role");
-        });
+        let index = arrays.roleArr.indexOf(answer.role);
+        let roleID = arrays.roleIDArr[index];
+        query.select("employee")
+          .then(res => {
+            let objectArr = JSON.parse(JSON.stringify(res));
+            let employeeRoleIDArr = objectArr.map(element => element.role_id);
+            if (employeeRoleIDArr.indexOf(roleID) !== -1) {
+              console.log("\nCannot delete role that is currently assigned to an employee!");
+              viewAll("employee");
+            } else {
+              console.log("Deleting role...\n");
+              query.deleteWhere("role", {title: answer.role})
+              .then(res => {
+                console.log("Updated role list:\n");
+                viewAll("role");
+              });
+            }
+          })
       })
     }).catch(err => {
       if (err) {
@@ -221,8 +247,9 @@ function delEmployee() {
     .then(res => {
       let objectArr = JSON.parse(JSON.stringify(res));
       let choicesArr = objectArr.map(element => element.first_name + " " + element.last_name);
-      let idArr = objectArr.map(element => element.id);
-      return {choicesArr, idArr};
+      let employeeIDArr = objectArr.map(element => element.id);
+      let managerIDArr = objectArr.map(element => element.manager_id);
+      return {choicesArr, employeeIDArr, managerIDArr};
     })
     .then(arrays => {
       inquirer.prompt([
@@ -233,14 +260,21 @@ function delEmployee() {
           choices: arrays.choicesArr
         }
       ]).then(answer => {
-        console.log("Deleting employee...\n");
         let index = arrays.choicesArr.indexOf(answer.employee);
-        query.deleteWhere("employee",
-        {id: arrays.idArr[index]})
-        .then(res => {
-          console.log("Updated employee roster:\n");
-          viewAll("role");
-        });
+        let employeeID = arrays.employeeIDArr[index];
+        if (arrays.managerIDArr.indexOf(employeeID) !== -1) {
+          console.log("\nCannot delete employee that currently manages another employee!");
+          viewAll("employee");
+        } else {
+          console.log("Deleting employee...\n");
+          query.deleteWhere("employee",
+            {id: employeeID})
+            .then(res => {
+              console.log("Updated employee roster:\n");
+              viewAll("employee");
+            });
+        }
+        
       })
     }).catch(err => {
       if (err) {
@@ -485,15 +519,16 @@ function update() {
     .then(res => {
       let objectArr = JSON.parse(JSON.stringify(res));
       let employeeArr = objectArr.map(element => element.first_name + " " + element.last_name);
-      return employeeArr;
+      let employeeIDArr = objectArr.map(element => element.id);
+      return {employeeArr, employeeIDArr};
     })
-    .then(employeeArr => {
+    .then(arrays => {
       inquirer.prompt([
         {
           type: "list",
           name: "employee",
           message: "Which employee would you like to update?",
-          choices: employeeArr
+          choices: arrays.employeeArr
         },
         {
           type: "list",
@@ -502,17 +537,17 @@ function update() {
           choices: ["Employee's role", "Employee's manager"]
         }
       ]).then(answers => {
-        let employeeIndex = employeeArr.indexOf(answers.employee);
+        let employeeIndex = arrays.employeeArr.indexOf(answers.employee);
         console.log("Current employee information:\n");
-        query.selectWhere("employee", {id: employeeIndex + 1})
+        query.selectWhere("employee", {id: arrays.employeeIDArr[employeeIndex]})
           .then(res => {
             console.table(res);
             switch (answers.toUpdate) {
               case "Employee's role":
-                updateRole(employeeIndex + 1);
+                updateRole(arrays.employeeIDArr[employeeIndex]);
                 break;
               case "Employee's manager":
-                updateManager(employeeIndex + 1);
+                updateManager(arrays.employeeIDArr[employeeIndex]);
                 break;
             }
           });
